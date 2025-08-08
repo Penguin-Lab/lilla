@@ -1,0 +1,797 @@
+//https://www.hackster.io/472607/quadruped-robot-gait-planning-and-application-761df2
+
+#define CUSTOM_SETTINGS
+#define INCLUDE_GAMEPAD_MODULE
+#include <DabbleESP32.h>
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+#include <math.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <HardwareSerial.h>
+HardwareSerial meuSerial(2);
+
+#define TOTAL_PONTOS 20
+#define METADE_PONTOS (TOTAL_PONTOS / 2)
+#define QUARTO_PONTOS (TOTAL_PONTOS / 4)
+#define PULO_PONTOS (TOTAL_PONTOS / 5)
+#define TEMPO_TRAJ 20
+
+int OFFSET_EF = 0;
+int OFFSET_DF = METADE_PONTOS;
+int OFFSET_DT = 0;
+int OFFSET_ET = METADE_PONTOS;
+
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_I2C_ADDRESS1 0x3C
+#define OLED_I2C_ADDRESS2 0x3D
+
+Adafruit_SSD1306 display1(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+Adafruit_SSD1306 display2(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+// 'olhinho1', 46x46px
+const unsigned char olhinho1[] PROGMEM = {
+  0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x01, 0xff, 0xfe, 0x00, 0x00, 0x00, 0x07, 0xff, 0xff,
+  0x80, 0x00, 0x00, 0x1f, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xf8, 0x00, 0x00, 0xff,
+  0xff, 0xff, 0xfc, 0x00, 0x01, 0xff, 0xff, 0xff, 0xfe, 0x00, 0x03, 0xff, 0xff, 0xff, 0xff, 0x00,
+  0x07, 0xff, 0xff, 0xff, 0xff, 0x80, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x0f, 0xff, 0xff, 0xff,
+  0xff, 0xc0, 0x1f, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x1f, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x3f, 0xff,
+  0xff, 0xff, 0xff, 0xf0, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xf0, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xf8,
+  0x7f, 0xff, 0xff, 0xff, 0xff, 0xf8, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xf8, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xf8, 0x7f, 0xff,
+  0xff, 0xff, 0xff, 0xf8, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xf8, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xf0,
+  0x3f, 0xff, 0xff, 0xff, 0xff, 0xf0, 0x1f, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x1f, 0xff, 0xff, 0xff,
+  0xff, 0xe0, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x07, 0xff,
+  0xff, 0xff, 0xff, 0x80, 0x03, 0xff, 0xff, 0xff, 0xff, 0x00, 0x01, 0xff, 0xff, 0xff, 0xfe, 0x00,
+  0x00, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xf8, 0x00, 0x00, 0x1f, 0xff, 0xff,
+  0xe0, 0x00, 0x00, 0x07, 0xff, 0xff, 0x80, 0x00, 0x00, 0x01, 0xff, 0xfe, 0x00, 0x00, 0x00, 0x00,
+  0x3f, 0xf0, 0x00, 0x00
+};
+// 'olhinho2', 46x46px
+const unsigned char olhinho3[] PROGMEM = {
+  0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x80, 0x00, 0x00, 0x00, 0x00, 0x07, 0x80,
+  0x00, 0x00, 0x00, 0x00, 0x0f, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x0f, 0xc0, 0x00, 0x00, 0x00, 0x00,
+  0x0f, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x0f, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xe0, 0x00, 0x00,
+  0x00, 0x00, 0x1f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xe0,
+  0x00, 0x00, 0x00, 0x00, 0x1f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xe0, 0x00, 0x00, 0x00, 0x00,
+  0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00,
+  0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0,
+  0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00,
+  0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00,
+  0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0,
+  0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00,
+  0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00,
+  0x00, 0x00, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xe0,
+  0x00, 0x00, 0x00, 0x00, 0x1f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xe0, 0x00, 0x00, 0x00, 0x00,
+  0x1f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x0f, 0xc0, 0x00, 0x00,
+  0x00, 0x00, 0x0f, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x0f, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x0f, 0xc0,
+  0x00, 0x00, 0x00, 0x00, 0x07, 0x80, 0x00, 0x00, 0x00, 0x00, 0x07, 0x80, 0x00, 0x00, 0x00, 0x00,
+  0x03, 0x00, 0x00, 0x00
+};
+// 'olhinho3', 46x46px
+const unsigned char olhinho2[] PROGMEM = {
+  0x00, 0x00, 0x3f, 0xe0, 0x00, 0x00, 0x00, 0x01, 0xff, 0xf0, 0x00, 0x00, 0x00, 0x07, 0xff, 0xf8,
+  0x00, 0x00, 0x00, 0x1f, 0xff, 0xf8, 0x00, 0x00, 0x00, 0x7f, 0xff, 0xf8, 0x00, 0x00, 0x00, 0xff,
+  0xff, 0xfc, 0x00, 0x00, 0x01, 0xff, 0xff, 0xfc, 0x00, 0x00, 0x03, 0xff, 0xff, 0xfc, 0x00, 0x00,
+  0x07, 0xff, 0xff, 0xfe, 0x00, 0x00, 0x0f, 0xff, 0xff, 0xfe, 0x00, 0x00, 0x0f, 0xff, 0xff, 0xfe,
+  0x00, 0x00, 0x1f, 0xff, 0xff, 0xff, 0x00, 0x00, 0x1f, 0xff, 0xff, 0xff, 0x00, 0x00, 0x3f, 0xff,
+  0xff, 0xff, 0x00, 0x00, 0x3f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x7f, 0xff, 0xff, 0xff, 0x80, 0x00,
+  0x7f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xc0, 0x00, 0xff, 0xff, 0xff, 0xff,
+  0xc0, 0x00, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x00, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0xff, 0xff,
+  0xff, 0xff, 0xe0, 0x00, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x00, 0xff, 0xff, 0xff, 0xff, 0xf0, 0x00,
+  0xff, 0xff, 0xff, 0xff, 0xf0, 0x00, 0xff, 0xff, 0xff, 0xff, 0xf0, 0x00, 0xff, 0xff, 0xff, 0xff,
+  0xf0, 0x00, 0xff, 0xff, 0xff, 0xff, 0xf8, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xf8, 0x00, 0x7f, 0xff,
+  0xff, 0xff, 0xf8, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x3f, 0xff, 0xff, 0xff, 0xfc, 0x00,
+  0x3f, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x1f, 0xff, 0xff, 0xff, 0xfe, 0x00, 0x1f, 0xff, 0xff, 0xff,
+  0xfe, 0x00, 0x0f, 0xff, 0xff, 0xff, 0xfe, 0x00, 0x0f, 0xff, 0xff, 0xff, 0xff, 0x00, 0x07, 0xff,
+  0xff, 0xff, 0xff, 0x00, 0x03, 0xff, 0xff, 0xff, 0xff, 0x00, 0x01, 0xff, 0xff, 0xff, 0xfe, 0x00,
+  0x00, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xf8, 0x00, 0x00, 0x1f, 0xff, 0xff,
+  0xe0, 0x00, 0x00, 0x07, 0xff, 0xff, 0x80, 0x00, 0x00, 0x01, 0xff, 0xfe, 0x00, 0x00, 0x00, 0x00,
+  0x3f, 0xf0, 0x00, 0x00
+};
+// 'olhinho4', 46x46px
+const unsigned char olhinho4[] PROGMEM = {
+  0x00, 0x00, 0x1f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x7f, 0xff,
+  0x80, 0x00, 0x00, 0x00, 0x7f, 0xff, 0xe0, 0x00, 0x00, 0x00, 0x7f, 0xff, 0xf8, 0x00, 0x00, 0x00,
+  0xff, 0xff, 0xfc, 0x00, 0x00, 0x00, 0xff, 0xff, 0xfe, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0x00,
+  0x00, 0x01, 0xff, 0xff, 0xff, 0x80, 0x00, 0x01, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x01, 0xff, 0xff,
+  0xff, 0xc0, 0x00, 0x03, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x03, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x03,
+  0xff, 0xff, 0xff, 0xf0, 0x00, 0x07, 0xff, 0xff, 0xff, 0xf0, 0x00, 0x07, 0xff, 0xff, 0xff, 0xf8,
+  0x00, 0x07, 0xff, 0xff, 0xff, 0xf8, 0x00, 0x0f, 0xff, 0xff, 0xff, 0xf8, 0x00, 0x0f, 0xff, 0xff,
+  0xff, 0xfc, 0x00, 0x0f, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x1f, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x1f,
+  0xff, 0xff, 0xff, 0xfc, 0x00, 0x1f, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x3f, 0xff, 0xff, 0xff, 0xfc,
+  0x00, 0x3f, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x3f, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x3f, 0xff, 0xff,
+  0xff, 0xfc, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xf8, 0x00, 0x7f,
+  0xff, 0xff, 0xff, 0xf8, 0x00, 0xff, 0xff, 0xff, 0xff, 0xf8, 0x00, 0xff, 0xff, 0xff, 0xff, 0xf0,
+  0x00, 0xff, 0xff, 0xff, 0xff, 0xf0, 0x01, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x01, 0xff, 0xff, 0xff,
+  0xff, 0xe0, 0x01, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x03, 0xff, 0xff, 0xff, 0xff, 0xc0, 0x03, 0xff,
+  0xff, 0xff, 0xff, 0x80, 0x03, 0xff, 0xff, 0xff, 0xff, 0x00, 0x01, 0xff, 0xff, 0xff, 0xfe, 0x00,
+  0x00, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xf8, 0x00, 0x00, 0x1f, 0xff, 0xff,
+  0xe0, 0x00, 0x00, 0x07, 0xff, 0xff, 0x80, 0x00, 0x00, 0x01, 0xff, 0xfe, 0x00, 0x00, 0x00, 0x00,
+  0x3f, 0xf0, 0x00, 0x00
+};
+
+//'olhinho5'
+const unsigned char olhinho5 [] PROGMEM = {
+	0x00, 0x00, 0x00, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x01, 0xff, 0xf0, 0x00, 0x00, 0x00, 0x01, 0xff, 
+	0xf0, 0x00, 0x00, 0x00, 0x03, 0xff, 0xfc, 0x00, 0x00, 0x00, 0x1f, 0xff, 0xfe, 0x00, 0x00, 0x00, 
+	0x3f, 0xff, 0xfe, 0x00, 0x00, 0x00, 0x7f, 0xff, 0xff, 0x80, 0x00, 0x00, 0x7f, 0xff, 0xff, 0x80, 
+	0x00, 0x01, 0xff, 0xff, 0xff, 0x80, 0x00, 0x03, 0xff, 0xff, 0xff, 0x80, 0x00, 0x03, 0xff, 0xff, 
+	0xff, 0xc0, 0x00, 0x03, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x07, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x1f, 
+	0xff, 0xff, 0xff, 0xc0, 0x00, 0x3f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x7f, 0xff, 0xff, 0xff, 0x80, 
+	0x00, 0x7f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x7f, 0xff, 0xff, 0xff, 0x80, 0x00, 0xff, 0xff, 0xff, 
+	0xfe, 0x00, 0x03, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x07, 0xff, 0xff, 0xff, 0xf8, 0x00, 0x07, 0xff, 
+	0xff, 0xff, 0xf8, 0x00, 0x0f, 0xff, 0xff, 0xff, 0xf0, 0x00, 0x0f, 0xff, 0xff, 0xff, 0xf8, 0x00, 
+	0x07, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x07, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x03, 0xff, 0xff, 0xff, 
+	0xfe, 0x00, 0x00, 0xff, 0xff, 0xff, 0xfe, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x3f, 
+	0xff, 0xff, 0xff, 0x80, 0x00, 0x3f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x1f, 0xff, 0xff, 0xff, 0xc0, 
+	0x00, 0x07, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x07, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x07, 0xff, 0xff, 
+	0xff, 0xc0, 0x00, 0x03, 0xff, 0xff, 0xff, 0x80, 0x00, 0x01, 0xff, 0xff, 0xff, 0x80, 0x00, 0x00, 
+	0x7f, 0xff, 0xff, 0x80, 0x00, 0x00, 0x3f, 0xff, 0xfe, 0x00, 0x00, 0x00, 0x3f, 0xff, 0xfe, 0x00, 
+	0x00, 0x00, 0x1f, 0xff, 0xfe, 0x00, 0x00, 0x00, 0x0f, 0xff, 0xfc, 0x00, 0x00, 0x00, 0x03, 0xff, 
+	0xf8, 0x00, 0x00, 0x00, 0x00, 0xff, 0xc0, 0x00, 0x00, 0x00, 0x00, 0xff, 0xc0, 0x00, 0x00, 0x00, 
+	0x00, 0x1f, 0x80, 0x00
+};
+
+//'olinho6', 46x46px
+const unsigned char olhinho6 [] PROGMEM = {
+	0x00, 0x07, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x0f, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x0f, 0xfc, 0x00, 
+	0x00, 0x00, 0x00, 0x7f, 0xff, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xc0, 0x00, 0x00, 0x01, 0xff, 
+	0xff, 0xe0, 0x00, 0x00, 0x01, 0xff, 0xff, 0xf0, 0x00, 0x00, 0x01, 0xff, 0xff, 0xf0, 0x00, 0x00, 
+	0x07, 0xff, 0xff, 0xf8, 0x00, 0x00, 0x07, 0xff, 0xff, 0xfe, 0x00, 0x00, 0x07, 0xff, 0xff, 0xff, 
+	0x00, 0x00, 0x0f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x0f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x0f, 0xff, 
+	0xff, 0xff, 0x80, 0x00, 0x0f, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x07, 0xff, 0xff, 0xff, 0xf0, 0x00, 
+	0x07, 0xff, 0xff, 0xff, 0xf0, 0x00, 0x07, 0xff, 0xff, 0xff, 0xf8, 0x00, 0x01, 0xff, 0xff, 0xff, 
+	0xfc, 0x00, 0x01, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x80, 0x00, 0xff, 
+	0xff, 0xff, 0xff, 0x80, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xc0, 0x00, 0x3f, 0xff, 0xff, 0xff, 0xc0, 
+	0x00, 0x7f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x7f, 0xff, 0xff, 0xff, 0x80, 0x00, 0xff, 0xff, 0xff, 
+	0xff, 0x00, 0x01, 0xff, 0xff, 0xff, 0xfc, 0x00, 0x07, 0xff, 0xff, 0xff, 0xf8, 0x00, 0x07, 0xff, 
+	0xff, 0xff, 0xf8, 0x00, 0x07, 0xff, 0xff, 0xff, 0xf8, 0x00, 0x07, 0xff, 0xff, 0xff, 0xf0, 0x00, 
+	0x0f, 0xff, 0xff, 0xff, 0xe0, 0x00, 0x0f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x0f, 0xff, 0xff, 0xff, 
+	0x00, 0x00, 0x0f, 0xff, 0xff, 0xff, 0x00, 0x00, 0x07, 0xff, 0xff, 0xff, 0x00, 0x00, 0x07, 0xff, 
+	0xff, 0xfe, 0x00, 0x00, 0x07, 0xff, 0xff, 0xf8, 0x00, 0x00, 0x07, 0xff, 0xff, 0xf8, 0x00, 0x00, 
+	0x01, 0xff, 0xff, 0xf0, 0x00, 0x00, 0x01, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 
+	0x00, 0x00, 0x00, 0x3f, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x3f, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x07, 
+	0xe0, 0x00, 0x00, 0x00
+};
+
+
+
+int bolha = 0;
+
+struct Perna {
+  Adafruit_PWMServoDriver *pwm;
+  int pinOmbro;
+  int pinFemur;
+  int pinTibia;
+  int angOmbro;
+  int angFemur;
+  int angTibia;
+  int proxangOmbro;
+  int proxangFemur;
+  int proxangTibia;
+  float proxangOmbro_rad;
+  float proxangFemur_rad;
+  float proxangTibia_rad;
+  int OMIN;
+  int OMAX;
+  int FMIN;
+  int FMAX;
+  int TMIN;
+  int TMAX;
+  float x_ini;
+  float y_ini;
+  float z_ini;
+  float x;
+  float y;
+  float z;
+  float P0[2];
+  float P1[2];
+  float P2[2];
+  float P3[2];
+  float Obodyx;
+  float Obodyy;
+
+  Perna(Adafruit_PWMServoDriver *pwm, int pinOmbro, int pinFemur, int pinTibia, int angOmbroIni, int angFemurIni, int angTibiaIni, int OMIN, int OMAX, int FMIN, int FMAX, int TMIN, int TMAX, float Obodyx, float Obodyy) {
+    this->pwm = pwm;
+    this->pinOmbro = pinOmbro;
+    this->pinFemur = pinFemur;
+    this->pinTibia = pinTibia;
+    this->angOmbro = -1;
+    this->angFemur = -1;
+    this->angTibia = -1;
+    this->proxangOmbro = 5;
+    this->proxangFemur = 40;
+    this->proxangTibia = -70;
+    this->proxangOmbro_rad = float(5) * 0.0175;//M_PI / 180.0;
+    this->proxangFemur_rad = float(40) * 0.0175;//M_PI / 180.0;
+    this->proxangTibia_rad = float(-70) * 0.0175;//M_PI / 180.0;
+    this->OMIN = OMIN;
+    this->OMAX = OMAX;
+    this->FMIN = FMIN;
+    this->FMAX = FMAX;
+    this->TMIN = TMIN;
+    this->TMAX = TMAX;
+    this->x_ini = 0.0;
+    this->y_ini = 0.0;
+    this->z_ini = 0.0;
+    this->x = 0.0;
+    this->y = 0.0;
+    this->z = 0.0;
+    this->P0[0] = 0.0;
+    this->P0[1] = 0.0;
+    this->P1[0] = 0.0;
+    this->P1[1] = 0.0;
+    this->P2[0] = 0.0;
+    this->P2[1] = 0.0;
+    this->P3[0] = 0.0;
+    this->P3[1] = 0.0;
+    this->Obodyx = Obodyx;
+    this->Obodyy = Obodyy;
+  }
+
+  void iniciaPerna(float x, float y, float z) {
+    // passa o ang ou proxang e gera this-x
+    //this->cinematica_direta_origem(4.0, 10.0, 10.0, this->proxangOmbro_rad, this->proxangFemur_rad, this->proxangTibia_rad);
+
+    this->x = x;
+    this->y = y;
+    this->z = z;
+
+    cinematica_inversa(4.0, 10.0, 10.0);
+
+    this->x_ini = this->x;
+    this->y_ini = this->y;
+    this->z_ini = this->z;
+    Serial.print("X: ");
+    Serial.print(this->x);
+    Serial.print(", Y: ");
+    Serial.print(this->y);
+    Serial.print(", Z: ");
+    Serial.println(this->z);
+    // Inicializa os vetores de trajetoria
+    this->P0[0] = this->z_ini - 4.0;
+    this->P0[1] = this->x_ini;
+    this->P1[0] = this->P0[0] + 1.3;
+    this->P1[1] = this->P0[1] - 6.0;
+    this->P2[0] = this->P0[0] + 2.9;
+    this->P2[1] = this->P0[1] - 6.0;
+    this->P3[0] = this->P0[0] + 5.0;
+    this->P3[1] = this->P0[1];
+
+    this->angOmbro = this->proxangOmbro;
+    int pulso = map(this->angOmbro, 0, 180, OMIN, OMAX);
+    pwm->setPWM(this->pinOmbro, 0, pulso);
+
+    this->angFemur = this->proxangFemur;
+    pulso = map(this->angFemur, 0, 180, FMIN, FMAX);
+    pwm->setPWM(this->pinFemur, 0, pulso);
+
+    this->angTibia = this->proxangTibia;
+    pulso = map(this->angTibia, 0, 180, TMIN, TMAX);
+    pwm->setPWM(this->pinTibia, 0, pulso);
+
+    Serial.println("Perna iniciada!");
+    // Serial.print("Ombro " + String(this->angOmbro));
+    // Serial.print(" Femur " + String(this->angFemur));
+    // Serial.println(" Tibia " + String(this->angTibia));
+  }
+
+  void iniciaPerna() {
+    // passa o ang ou proxang e gera this-x
+    Serial.print("Ombro " + String(this->proxangOmbro));
+    Serial.print(" Femur " + String(this->proxangFemur));
+    Serial.println(" Tibia " + String(this->proxangTibia));
+    this->cinematica_direta_origem(4.0, 10.0, 10.0, this->proxangOmbro_rad, this->proxangFemur_rad, this->proxangTibia_rad);
+
+    this->x_ini = this->x;
+    this->y_ini = this->y;
+    this->z_ini = this->z;
+    Serial.print("X: ");
+    Serial.print(this->x);
+    Serial.print(", Y: ");
+    Serial.print(this->y);
+    Serial.print(", Z: ");
+    Serial.println(this->z);
+    // Inicializa os vetores de trajetoria
+    this->P0[0] = this->z_ini;
+    this->P0[1] = this->x_ini;
+    this->P1[0] = this->P0[0] + 2.0;
+    this->P1[1] = this->P0[1] - 6.0;
+    this->P2[0] = this->P0[0] + 8.0;
+    this->P2[1] = this->P0[1] - 6.0;
+    this->P3[0] = this->P0[0] + 8.0;
+    this->P3[1] = this->P0[1];
+
+    this->angOmbro = this->proxangOmbro;
+    int pulso = map(this->angOmbro, 0, 180, OMIN, OMAX);
+    pwm->setPWM(this->pinOmbro, 0, pulso);
+
+    this->angFemur = this->proxangFemur;
+    pulso = map(this->angFemur, 0, 180, FMIN, FMAX);
+    pwm->setPWM(this->pinFemur, 0, pulso);
+
+    this->angTibia = this->proxangTibia;
+    pulso = map(this->angTibia, 0, 180, TMIN, TMAX);
+    pwm->setPWM(this->pinTibia, 0, pulso);
+
+    Serial.println("Perna iniciada!");
+    // Serial.print("Ombro " + String(this->angOmbro));
+    // Serial.print(" Femur " + String(this->angFemur));
+    // Serial.println(" Tibia " + String(this->angTibia));
+  }
+
+  void moverPerna() {
+    if (this->proxangOmbro != this->angOmbro) {
+      this->proxangOmbro_rad = float(proxangOmbro) * M_PI / 180.0;
+      this->angOmbro = this->proxangOmbro;
+      int pulso = map(this->angOmbro, 0, 180, OMIN, OMAX);
+      pwm->setPWM(this->pinOmbro, 0, pulso);
+    }
+    if (this->proxangFemur != this->angFemur) {
+      this->proxangFemur_rad = float(proxangFemur) * M_PI / 180.0;
+      this->angFemur = this->proxangFemur;
+      int pulso = map(this->angFemur, 0, 180, FMIN, FMAX);
+      pwm->setPWM(this->pinFemur, 0, pulso);
+    }
+    if (this->proxangTibia != this->angTibia) {
+      this->proxangTibia_rad = float(proxangTibia) * M_PI / 180.0;
+      this->angTibia = this->proxangTibia;
+      int pulso = map(this->angTibia, 0, 180, TMIN, TMAX);
+      pwm->setPWM(this->pinTibia, 0, pulso);
+    }
+    // Serial.print("Ombro " + String(this->angOmbro));
+    // Serial.print(" Femur " + String(this->angFemur));
+    // Serial.println(" Tibia " + String(this->angTibia));
+  }
+
+  // cinematica_direta_origem(4.0, 10.0, 10.0, this->proxangOmbro_rad, this->proxangFemur_rad, this->proxangTibia_rad);
+  void cinematica_direta_origem(float L1, float L2, float L3, float theta1_rad, float theta2_rad, float theta3_rad) {
+    this->x = L2 * cos(theta1_rad) * cos(theta2_rad) - L1 * sin(theta1_rad) - L3 * (cos(theta1_rad) * sin(theta2_rad) * sin(theta3_rad) - cos(theta1_rad) * cos(theta2_rad) * cos(theta3_rad));
+    this->y = L1 * cos(theta1_rad) + L3 * (cos(theta2_rad) * cos(theta3_rad) * sin(theta1_rad) - sin(theta1_rad) * sin(theta2_rad) * sin(theta3_rad)) + L2 * cos(theta2_rad) * sin(theta1_rad);
+    this->z = -L3 * sin(theta2_rad + theta3_rad) - L2 * sin(theta2_rad);
+    // Serial.print("x: " + String(this->x));
+    // Serial.print(" y: " + String(this->y));
+    // Serial.println(" z: " + String(this->z));
+  }
+
+  // cinematica_inversa(4.0, 10.0, 10.0);
+  void cinematica_inversa(float L1, float L2, float L3) {
+    float D = sqrt(this->y * this->y + this->x * this->x - L1 * L1);
+    this->proxangOmbro_rad = atan2(this->y, this->x) + atan2(D, L1) - M_PI / 2.0;
+    this->proxangOmbro = int(this->proxangOmbro_rad * 180.0 / M_PI);
+
+    float G = sqrt(D * D + this->z * this->z);
+    this->proxangTibia_rad = acos((L2 * L2 + L3 * L3 - G * G) / (2 * L2 * L3)) - M_PI;
+    this->proxangTibia = int(this->proxangTibia_rad * 180.0 / M_PI);
+
+    this->proxangFemur_rad = -atan2(this->z, D) + asin(L3 * sin(this->proxangTibia_rad + M_PI) / G);
+    this->proxangFemur = int(this->proxangFemur_rad * 180.0 / M_PI);
+  }
+
+  void proximo_ponto_trajetoria(int k, int offset, float angulo) {
+    int kn = (k + offset) % TOTAL_PONTOS;
+    float t;
+    float u;
+    // Atualiza posição
+    if (kn < PULO_PONTOS) {
+      t = float(kn) / (PULO_PONTOS - 1);
+      u = 1 - t;
+      this->z = this->z_ini + cos(angulo) * (-this->z_ini + pow(u, 3) * this->P0[0] + 3 * pow(u, 2) * t * this->P1[0] + 3 * u * pow(t, 2) * this->P2[0] + pow(t, 3) * this->P3[0]);
+      this->y = this->y_ini + sin(angulo) * (-this->z_ini + pow(u, 3) * this->P0[0] + 3 * pow(u, 2) * t * this->P1[0] + 3 * u * pow(t, 2) * this->P2[0] + pow(t, 3) * this->P3[0]);
+      this->x = pow(u, 3) * this->P0[1] + 3 * pow(u, 2) * t * this->P1[1] + 3 * u * pow(t, 2) * this->P2[1] + pow(t, 3) * this->P3[1];
+    } else {
+      this->z = this->z_ini + cos(angulo) * (-this->z_ini + this->P3[0] + (this->P0[0] - this->P3[0]) * (float(kn - PULO_PONTOS) / (TOTAL_PONTOS - PULO_PONTOS - 1)));
+      this->y = this->y_ini + sin(angulo) * (-this->z_ini + this->P3[0] + (this->P0[0] - this->P3[0]) * (float(kn - PULO_PONTOS) / (TOTAL_PONTOS - PULO_PONTOS - 1)));
+      this->x = this->x_ini;
+    }
+  }
+  void proximo_ponto_pata(int k, int offset, float dx, float dy, float dz) {
+    int kn = (k + offset) % TOTAL_PONTOS;
+    float t;
+    float u;
+    float dx1 = dx / 4.0;
+    float dx2 = dx / 2.0;
+    float Px[4] = { this->x_ini, this->x_ini + dx1 - 6.0, this->x_ini + dx2 - 10.0, this->x_ini + dx };
+    float dy1 = dy / 4.0;
+    float dy2 = dy / 2.0;
+    float Py[4] = { this->y_ini, this->y_ini + dy1, this->y_ini + dy2, this->y_ini + dy };
+    float dz1 = dz / 4.0;
+    float dz2 = dz / 2.0;
+    float Pz[4] = { this->z_ini, this->z_ini + dz1, this->z_ini + dz2, this->z_ini + dz };
+
+    // Atualiza posição
+    if (kn < METADE_PONTOS) {
+      t = float(kn) / (METADE_PONTOS - 1);
+      u = 1 - t;
+      this->x = pow(u, 3) * Px[0] + 3 * pow(u, 2) * t * Px[1] + 3 * u * pow(t, 2) * Px[2] + pow(t, 3) * Px[3];
+      this->y = pow(u, 3) * Py[0] + 3 * pow(u, 2) * t * Py[1] + 3 * u * pow(t, 2) * Py[2] + pow(t, 3) * Py[3];
+      this->z = pow(u, 3) * Pz[0] + 3 * pow(u, 2) * t * Pz[1] + 3 * u * pow(t, 2) * Pz[2] + pow(t, 3) * Pz[3];
+    }
+  }
+
+  void moverPosIni() {
+    this->x = this->x_ini;
+    this->y = this->y_ini;
+    this->z = this->z_ini;
+
+    cinematica_inversa(4.0, 10.0, 10.0);
+
+    if (this->proxangOmbro != this->angOmbro) {
+      this->angOmbro = this->proxangOmbro;
+      int pulso = map(this->angOmbro, 0, 180, OMIN, OMAX);
+      pwm->setPWM(this->pinOmbro, 0, pulso);
+    }
+    if (this->proxangFemur != this->angFemur) {
+      this->angFemur = this->proxangFemur;
+      int pulso = map(this->angFemur, 0, 180, FMIN, FMAX);
+      pwm->setPWM(this->pinFemur, 0, pulso);
+    }
+    if (this->proxangTibia != this->angTibia) {
+      this->angTibia = this->proxangTibia;
+      int pulso = map(this->angTibia, 0, 180, TMIN, TMAX);
+      pwm->setPWM(this->pinTibia, 0, pulso);
+    }
+    // Serial.print("Ombro " + String(this->angOmbro));
+    // Serial.print(" Femur " + String(this->angFemur));
+    // Serial.println(" Tibia " + String(this->angTibia));
+  }
+};
+
+Perna EsqF(&pwm, 12, 13, 14, 5, 40, -70, 335, 755, 182, 662, 33, -467, 5.35, 10.0 );
+// Perna EsqF(&pwm, 12, 13, 14, 5, 40, -70, 250, 714, 182, 662, 33, -467, 5.35, 10.0 );
+Perna EsqT(&pwm, 8, 9, 10, 5, 40, -70, 418, -46, 184, 672, 168, -332, 5.35, -10.0 );
+
+Perna DirF(&pwm, 0, 1, 2, 5, 40, -70, 422, -58, 450, -6, 458, 890, -5.35, 10.0 );
+Perna DirT(&pwm, 4, 5, 6, 5, 40, -70, 214, 646, 432, -4, 632, 1096, -5.35, -10.0 );
+
+
+unsigned long tempo_comando, tempo_piscada, tempo_olho_mau, tempo_coracao;
+
+void TaskDisplays(void *pvParameters);
+void TaskTrajetoria(void *pvParameters);
+void TaskServos(void *pvParameters);
+
+// Comandos para o audio
+void sendCommand(byte command, byte param1, byte param2) {
+  byte commandBuffer[10] = { 0x7E, 0xFF, 0x06, command, 0x00, param1, param2, 0x00, 0x00, 0xEF };
+
+  // Calcula checksum
+  int16_t checksum = -(commandBuffer[1] + commandBuffer[2] + commandBuffer[3] + commandBuffer[4] + commandBuffer[5] + commandBuffer[6]);
+  commandBuffer[7] = (checksum >> 8) & 0xFF;
+  commandBuffer[8] = checksum & 0xFF;
+
+  meuSerial.write(commandBuffer, 10);  // Envia o comando para o DFPlayer
+}
+
+void playTrack(int track) {
+  sendCommand(0x03, 0x00, track);
+  Serial.print("Tocando faixa ");
+  Serial.println(track);
+}
+
+void setup() {
+  delay(2000);
+  Serial.begin(115200);
+  meuSerial.begin(9600, SERIAL_8N1, 16, 17);
+  Dabble.begin("Lilla");
+  Wire.begin(21, 22);
+
+  pwm.begin();
+  pwm.setPWMFreq(50);
+  Serial.println("Lilla ligada!");
+
+  // MEXER NO VOLUME
+  sendCommand(0x06, 0x00, 30);
+  Serial.print("Volume em 30");
+  playTrack(1);
+  delay(3000);
+
+  if (!display1.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDRESS1)) {
+    Serial.println(F("Não foi possível encontrar o display OLED 1"));
+    for (;;)
+      ;
+  }
+
+  if (!display2.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDRESS2)) {
+    Serial.println(F("Não foi possível encontrar o display OLED 2"));
+    for (;;)
+      ;
+  }
+
+  display1.clearDisplay();
+  display2.clearDisplay();
+  display1.display();
+  display2.display();
+
+  tempo_piscada = millis();
+  tempo_comando = millis();
+  tempo_olho_mau = millis();
+
+  // Cria as tarefas
+  xTaskCreate(TaskDisplays, "Displays", 2048, NULL, 1, NULL);
+  xTaskCreate(TaskTrajetoria, "Trajetoria", 4096, NULL, 1, NULL);
+  xTaskCreate(TaskServos, "Servos", 4096, NULL, 1, NULL);
+
+  Serial.println("EF");
+  EsqF.iniciaPerna(15.91, 4.41, 1.43);
+  // EsqF.iniciaPerna();
+  Serial.println("ET");
+  EsqT.iniciaPerna(15.91, 4.41, -4.43);
+  // EsqT.iniciaPerna();
+
+  Serial.println("DF");
+  DirF.iniciaPerna(15.91, 4.41, 1.43);
+  // DirF.iniciaPerna();
+  Serial.println("DT");
+  DirT.iniciaPerna(15.91, 4.41, -4.43);
+  // DirT.iniciaPerna();
+  delay(2000);
+}
+
+void loop() {
+  // Loop vazio, a lógica é controlada pelas tarefas
+}
+
+int estado_comando = 0;
+int estado_piscando = 0;
+int estado_coracao = 0;
+int dt_coracao = 4000;
+int dt_piscada = 100;
+int dt_aberto = 8000;
+int dt_brava = 30000;  //60000 = 1min
+
+void TaskDisplays(void *pvParameters) {
+  for (;;) {
+    if (estado_piscando == 0) {
+      if ((millis() - tempo_piscada) > dt_aberto) {
+        display1.clearDisplay();
+        display1.drawBitmap(41, 9, olhinho3, 46, 46, WHITE);
+        display1.display();
+
+        display2.clearDisplay();
+        display2.drawBitmap(41, 9, olhinho3, 46, 46, WHITE);
+        display2.display();
+        estado_piscando = 1;
+        tempo_piscada = millis();
+        vTaskDelay(pdMS_TO_TICKS(20));
+      } else {
+        if (estado_comando == 0) {
+          if ((millis() - tempo_comando) > dt_brava) {
+            estado_comando = 1;
+            tempo_olho_mau = millis();
+          } else {
+            display1.clearDisplay();
+            display1.drawBitmap(41, 9, olhinho1, 46, 46, WHITE);
+            display1.display();
+
+            display2.clearDisplay();
+            display2.drawBitmap(41, 9, olhinho1, 46, 46, WHITE);
+            display2.display();
+            vTaskDelay(pdMS_TO_TICKS(20));  // Tempo para o olho ficar aberto
+          }
+        } else if (estado_comando == 1) {
+          if ((millis() - tempo_comando) < dt_brava) {
+            estado_comando = 0;
+          } else if ((millis() - tempo_olho_mau) > 2000) {
+            estado_comando = 2;
+            tempo_olho_mau = millis();
+          } else {
+            display1.clearDisplay();
+            display1.drawBitmap(41, 9, olhinho2, 46, 46, WHITE);
+            display1.display();
+
+            display2.clearDisplay();
+            display2.drawBitmap(41, 9, olhinho4, 46, 46, WHITE);
+            display2.display();
+            vTaskDelay(pdMS_TO_TICKS(20));  // Tempo para o olho ficar aberto
+          }
+        } else if (estado_comando == 2) {
+          if ((millis() - tempo_comando) < dt_brava) {
+            estado_comando = 0;
+          } else if ((millis() - tempo_olho_mau) > 2000) {
+            estado_comando = 1;
+            tempo_olho_mau = millis();
+          } else {
+            display1.clearDisplay();
+            display1.drawBitmap(41, 18, olhinho2, 46, 46, WHITE);
+            display1.display();
+
+            display2.clearDisplay();
+            display2.drawBitmap(41, 0, olhinho4, 46, 46, WHITE);
+            display2.display();
+            vTaskDelay(pdMS_TO_TICKS(20));  // Tempo para o olho ficar aberto
+          }
+        }
+        else{
+          // Olho coracao
+          if ((millis() - tempo_coracao) > dt_coracao) {
+            estado_comando = 0;
+            tempo_comando = millis();
+          } else {
+            display1.clearDisplay();
+            display1.drawBitmap(41, 0, olhinho5, 46, 46, WHITE);
+            display1.display();
+
+            display2.clearDisplay();
+            display2.drawBitmap(41, 0, olhinho6, 46, 46, WHITE);
+            display2.display();
+            vTaskDelay(pdMS_TO_TICKS(20));  // Tempo para o olho ficar aberto
+          }
+        }
+      }
+    } else {
+      if ((millis() - tempo_piscada) > dt_piscada) {
+        estado_piscando = 0;
+        tempo_piscada = millis();
+      }
+    }
+  }
+}
+
+bool select_apertado = 0;
+int angulo_joystick;
+void TaskTrajetoria(void *pvParameters) {
+  int k = 0;
+  for (;;) {
+    /*if (bolha == 1) {// Gira pra esquerda no proprio eixo
+        //proximo_ponto_trajetoria_rodar(int k, int offset, float angulo, float dy)
+        EsqF.proximo_ponto_trajetoria_rodar(k, OFFSET_EF, -10, 0);
+        EsqT.proximo_ponto_trajetoria_rodar(k, OFFSET_ET, -10, 0);
+        DirF.proximo_ponto_trajetoria_rodar(k, OFFSET_DF, +10, 0);
+        DirT.proximo_ponto_trajetoria_rodar(k, OFFSET_DT, +10, 0);
+        // Serial.print(String(EsqF.angulin,4) + " , ");
+        // A partir dos x da trajetoria, atualiza os proxang
+        EsqF.cinematica_inversa(4.0, 10.0, 10.0);
+        EsqT.cinematica_inversa(4.0, 10.0, 10.0);
+        DirF.cinematica_inversa(4.0, 10.0, 10.0);
+        DirT.cinematica_inversa(4.0, 10.0, 10.0);
+        EsqF.moverPerna();
+        EsqT.moverPerna();
+        DirF.moverPerna();
+        DirT.moverPerna();
+        if (k == TOTAL_PONTOS - 1){
+          k = 0;
+        }
+        else{
+          k++;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    else if(bolha == 2){// Gira pra direita no proprio eixo
+        //proximo_ponto_trajetoria_rodar(int k, int offset, float angulo, float dy)
+        EsqF.proximo_ponto_trajetoria_rodar(k, OFFSET_EF, +10, 0);
+        EsqT.proximo_ponto_trajetoria_rodar(k, OFFSET_ET, +10, 0);
+        DirF.proximo_ponto_trajetoria_rodar(k, OFFSET_DF, -10, 0);
+        DirT.proximo_ponto_trajetoria_rodar(k, OFFSET_DT, -10, 0);
+        // Serial.print(String(EsqF.angulin,4) + " , ");
+        // A partir dos x da trajetoria, atualiza os proxang
+        EsqF.cinematica_inversa(4.0, 10.0, 10.0);
+        EsqT.cinematica_inversa(4.0, 10.0, 10.0);
+        DirF.cinematica_inversa(4.0, 10.0, 10.0);
+        DirT.cinematica_inversa(4.0, 10.0, 10.0);
+        EsqF.moverPerna();
+        EsqT.moverPerna();
+        DirF.moverPerna();
+        DirT.moverPerna();
+        if (k == TOTAL_PONTOS - 1){
+          k = 0;
+        }
+        else{
+          k++;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    else if(bolha == 3){// Gira pra esquerda em torno de algo
+        //proximo_ponto_trajetoria_rodar(int k, int offset, float angulo, float dy)
+        EsqF.proximo_ponto_trajetoria_rodar(k, OFFSET_EF, -10, -10);
+        EsqT.proximo_ponto_trajetoria_rodar(k, OFFSET_ET, -10, -10);
+        DirF.proximo_ponto_trajetoria_rodar(k, OFFSET_DF, +10, 10);
+        DirT.proximo_ponto_trajetoria_rodar(k, OFFSET_DT, +10, 10);
+        // Serial.print(String(EsqF.angulin,4) + " , ");
+        // A partir dos x da trajetoria, atualiza os proxang
+        EsqF.cinematica_inversa(4.0, 10.0, 10.0);
+        EsqT.cinematica_inversa(4.0, 10.0, 10.0);
+        DirF.cinematica_inversa(4.0, 10.0, 10.0);
+        DirT.cinematica_inversa(4.0, 10.0, 10.0);
+        EsqF.moverPerna();
+        EsqT.moverPerna();
+        DirF.moverPerna();
+        DirT.moverPerna();
+        if (k == TOTAL_PONTOS - 1){
+          k = 0;
+        }
+        else{
+          k++;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    else
+    */
+    if (bolha == 4) {  //Mover patinha para a posição X = [x_ini+10;y_ini;z_ini+10]
+      float pos_x = -10;
+      float pos_y = 0;
+      float pos_z = 10;
+      DirF.proximo_ponto_pata(k, 0, pos_x, pos_y, pos_z);
+      // A partir dos x da trajetoria, atualiza os proxang
+      DirF.cinematica_inversa(4.0, 10.0, 10.0);  // pega o valor de this->x e atualiza os proxang
+      DirF.moverPerna();
+      if (k < METADE_PONTOS) {
+        k++;
+      }
+      vTaskDelay(pdMS_TO_TICKS(10));
+    } else if (bolha == 5) {  //ESQUERDA
+      float angulo = (float(angulo_joystick) - 90) * M_PI / 180.0;
+      EsqF.proximo_ponto_trajetoria(k, OFFSET_EF, -angulo);
+      EsqT.proximo_ponto_trajetoria(k, OFFSET_ET, -angulo);
+      DirF.proximo_ponto_trajetoria(k, OFFSET_DF, angulo);
+      DirT.proximo_ponto_trajetoria(k, OFFSET_DT, angulo);
+      // Serial.print(String(EsqF.angulin,4) + " , ");
+      // A partir dos x da trajetoria, atualiza os proxang
+      EsqF.cinematica_inversa(4.0, 10.0, 10.0);
+      EsqT.cinematica_inversa(4.0, 10.0, 10.0);
+      DirF.cinematica_inversa(4.0, 10.0, 10.0);
+      DirT.cinematica_inversa(4.0, 10.0, 10.0);
+      EsqF.moverPerna();
+      EsqT.moverPerna();
+      DirF.moverPerna();
+      DirT.moverPerna();
+      if (k == TOTAL_PONTOS - 1) {
+        k = 0;
+      } else {
+        k++;
+      }
+      vTaskDelay(pdMS_TO_TICKS(TEMPO_TRAJ));
+    } else {
+      k = 0;
+      EsqF.moverPosIni();
+      EsqT.moverPosIni();
+      DirF.moverPosIni();
+      DirT.moverPosIni();
+      vTaskDelay(pdMS_TO_TICKS(10));
+    }
+  }
+}
+
+void TaskServos(void *pvParameters) {
+  for (;;) {
+    Dabble.processInput();
+
+    if (GamePad.isUpPressed()) {
+      bolha = 3;
+      tempo_comando = millis();
+    } else if (GamePad.isDownPressed()) {
+      bolha = 4;
+      tempo_comando = millis();
+    } else if (GamePad.isRightPressed()) {
+      bolha = 2;
+      tempo_comando = millis();
+    } else if (GamePad.isLeftPressed()) {
+      bolha = 1;
+      tempo_comando = millis();
+    } else if (GamePad.getRadius() > 2) {
+      angulo_joystick = GamePad.getAngle();
+      bolha = 5;
+      tempo_comando = millis();
+    } else {
+      bolha = 0;
+    }
+
+    if (GamePad.isSquarePressed()) {
+      playTrack(1);
+    }
+    if (GamePad.isTrianglePressed()) {
+      playTrack(1);
+      estado_comando = 3;
+      tempo_coracao = millis();
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(20));
+  }
+}
