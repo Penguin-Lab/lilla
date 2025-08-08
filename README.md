@@ -4,7 +4,7 @@ A Lilla é uma robô quadrúpede desenvolvida para andar de forma autônoma ou p
 # Estrutura física
 A estrutura física do robô é composta por quatro patas de três eixos cada (três motores). As patas são fixadas a uma estrutura de PLA para deixar o robô firme. As peças são todas projetadas em 3D e foram impressas utilizando PLA, podendo ser encontradas na pasta Pecas_3d deste projeto.
 
-<img src="https://github.com/Penguin-Lab/lilla/blob/main/images/lilla0.png" height="350"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/lilla1.png" height="350"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/lilla4.png" height="300"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/lilla3.png" height="300">
+<img src="https://github.com/Penguin-Lab/lilla/blob/main/images/lilla0.png" height="350"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/lilla1.png" height="350"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/lilla4.png" height="320"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/lilla3.png" height="320">
 
 ## Peças 3D em STL
 As peças em 3D desenvolvidas para este projeto foram baseadas no projeto do robô desenvolvido por Andres ([LINK](https://gitlab.com/anflores/pavlov_mini)). Na pasta Pecas_3d, estão listadas essas peças em STL. Para ajudar, segue abaixo uma lista de todas as peças que devem ser impressas e qual o valor da sua maior dimensão (para ajudar na escolha da impressora):
