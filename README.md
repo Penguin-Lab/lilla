@@ -45,7 +45,7 @@ Obs 3: os outros motores ficam fixados nas peças por [discos metálicos pequeno
 
 <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/discoeixo.jpeg" height="100">
 
-<img src="https://github.com/Penguin-Lab/lilla/blob/main/images/pata0.png" height="300"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/pata1.png" height="300"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/corpo0.png" height="300"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/corpo1.png" height="300"> ALTERAR
+<img src="https://github.com/Penguin-Lab/lilla/blob/main/images/pata0.png" height="300"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/pata1.png" height="300"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/corpo0.png" height="300"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/corpo1.png" height="300">
 
 ## Outros itens da estrutura
 Alguns outros itens são necessários para finalizar a estrutura da Lilla:
