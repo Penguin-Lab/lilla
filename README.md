@@ -76,3 +76,11 @@ Os componentes eletrônicos embarcados no robô e equipamentos utilizados são:
 # Software
 Na pasta de códigos, há um código de programação da ESP32 (38 pinos). Ele é um exemplo em C++ do comando de movimentação da Lilla:
 * Dabble: a ESP32 pode se comunicar com o aplicativo Dabble no celular e receber comandos de ação.
+
+## Alunas participantes e desenvolvedoras da Lilla
+* Ana Carolina Domingues Benisio
+* Jéssica Kauany Morais Carvalho
+* Maria Cecilia poton Cristovão
+* Sarah Souza Mendes
+
+<img src="https://github.com/Penguin-Lab/lilla/blob/main/images/fotinha0.jpg" height="350">
