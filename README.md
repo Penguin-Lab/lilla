@@ -56,7 +56,7 @@ Alguns outros itens são necessários para finalizar a estrutura da Lilla:
 ## Placa de circuito impresso
 No projeto, foi desenvolvida uma placa de circuito para servir como shield para a ESP32 e conexão com a placa PCA9685 e o módulo DFPlayer Mini MP3 Player.
 
-<img src="https://github.com/Penguin-Lab/lilla/blob/main/images/shield_esp_foto0.jpg" height="400"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/board0.png" height="400"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/board1.png" height="400">
+<img src="https://github.com/Penguin-Lab/lilla/blob/main/images/shield_esp_foto0.jpg" height="400"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/board0.png" height="300"> <img src="https://github.com/Penguin-Lab/lilla/blob/main/images/board1.png" height="300">
 
 
 ## Componentes eletrônicos
