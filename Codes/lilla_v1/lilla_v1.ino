@@ -451,6 +451,13 @@ Perna EsqT(&pwm, 8, 9, 10, 5, 40, -70, 418, -46, 184, 672, 168, -332, 5.35, -10.
 Perna DirF(&pwm, 0, 1, 2, 5, 40, -70, 422, -58, 450, -6, 458, 890, -5.35, 10.0 );
 Perna DirT(&pwm, 4, 5, 6, 5, 40, -70, 214, 646, 432, -4, 632, 1096, -5.35, -10.0 );
 
+// Criacao das patas e do quadrupede NOVO
+// Pata EsqF = {&pwmE, 8, 9, 10, 334, 757, 342, 756, 143, -269};
+// Pata EsqT = {&pwmE, 12, 13, 14, 345, -77, 344, 760, 121, -297};
+
+// Pata DirF = {&pwmD, 4, 5, 6, 341, -81, 345, -73, 515, 931};
+// Pata DirT = {&pwmD, 0, 1, 2, 349, 759, 321, -95, 501, 909};
+
 
 unsigned long tempo_comando, tempo_piscada, tempo_olho_mau, tempo_coracao;
 
