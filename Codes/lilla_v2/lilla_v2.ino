@@ -828,20 +828,66 @@ struct Quadruped {
 
 // Criacao das patas e do quadrupede
 Pata EsqF = {&pwm, 8, 9, 10, 334, 757, 342, 756, 143, -269};
-Pata EsqT = {&pwm, 12, 13, 14, 345, -77, 344, 760, 121, -297};
+Pata EsqT = {&pwm, 12, 13, 14, 345, -77, 344, 760, 114, -297};
 
-Pata DirF = {&pwm, 4, 5, 6, 341, -81, 345, -73, 515, 931};
-Pata DirT = {&pwm, 0, 1, 2, 349, 759, 321, -95, 501, 909};
+Pata DirF = {&pwm, 4, 5, 6, 341, -81, 345, -73, 507, 918};
+Pata DirT = {&pwm, 0, 1, 2, 349, 759, 321, -95, 550, 968};
 
 Quadruped lilla = {EsqF, EsqT, DirF,DirT};
 
+unsigned long tempo_comando, tempo_piscada, tempo_olho_mau, tempo_coracao;
+
 void TaskQuadruped(void *pvParameters);
 void TaskComunicacao(void *pvParameters);
+void TaskDisplays(void *pvParameters);
+// Audio
+void sendCommand(byte command, byte param1, byte param2) {
+  byte commandBuffer[10] = { 0x7E, 0xFF, 0x06, command, 0x00, param1, param2, 0x00, 0x00, 0xEF };
+
+  // Calcula checksum
+  int16_t checksum = -(commandBuffer[1] + commandBuffer[2] + commandBuffer[3] + commandBuffer[4] + commandBuffer[5] + commandBuffer[6]);
+  commandBuffer[7] = (checksum >> 8) & 0xFF;
+  commandBuffer[8] = checksum & 0xFF;
+  meuSerial.write(commandBuffer, 10);  // Envia o comando para o DFPlayer
+}
+void playTrack(int track) {
+  sendCommand(0x03, 0x00, track);
+  Serial.print("Tocando faixa ");
+  Serial.println(track);
+}
 
 void setup() {
   Serial.begin(38400);
   Dabble.begin("Lilla");
   Serial.println("Lilla ligada!");
+  meuSerial.begin(9600, SERIAL_8N1, 16, 17);
+  Wire.begin(21, 22);
+  // Volume
+  sendCommand(0x06, 0x00, 30);
+  Serial.print("Volume em 30");
+  playTrack(1);
+  delay(3000);
+
+  if (!display1.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDRESS1)) {
+    Serial.println(F("Não foi possível encontrar o display OLED 1"));
+    for (;;)
+      ;
+  }
+
+  if (!display2.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDRESS2)) {
+    Serial.println(F("Não foi possível encontrar o display OLED 2"));
+    for (;;)
+      ;
+  }
+
+  display1.clearDisplay();
+  display2.clearDisplay();
+  display1.display();
+  display2.display();
+
+  tempo_piscada = millis();
+  tempo_comando = millis();
+  tempo_olho_mau = millis();
 
   pwm.begin();
   pwm.setPWMFreq(50);
@@ -850,10 +896,107 @@ void setup() {
 
   xTaskCreate(TaskQuadruped, "quadruped", 4096, NULL, 1, NULL);
   xTaskCreate(TaskComunicacao, "comunicacao", 4096, NULL, 1, NULL);
+  xTaskCreate(TaskDisplays, "Displays", 2048, NULL, 1, NULL);
 
 }
 
 void loop(){
+}
+
+int estado_comando = 0;
+int estado_piscando = 0;
+int estado_coracao = 0;
+int dt_coracao = 4000;
+int dt_piscada = 100;
+int dt_aberto = 8000;
+int dt_brava = 30000;  //60000 = 1min
+
+void TaskDisplays(void *pvParameters) {
+  for (;;) {
+    if (estado_piscando == 0) {
+      if ((millis() - tempo_piscada) > dt_aberto) {
+        display1.clearDisplay();
+        display1.drawBitmap(41, 9, olhinho3, 46, 46, WHITE);
+        display1.display();
+
+        display2.clearDisplay();
+        display2.drawBitmap(41, 9, olhinho3, 46, 46, WHITE);
+        display2.display();
+        estado_piscando = 1;
+        tempo_piscada = millis();
+        vTaskDelay(pdMS_TO_TICKS(20));
+      } else {
+        if (estado_comando == 0) {
+          if ((millis() - tempo_comando) > dt_brava) {
+            estado_comando = 1;
+            tempo_olho_mau = millis();
+          } else {
+            display1.clearDisplay();
+            display1.drawBitmap(41, 9, olhinho1, 46, 46, WHITE);
+            display1.display();
+
+            display2.clearDisplay();
+            display2.drawBitmap(41, 9, olhinho1, 46, 46, WHITE);
+            display2.display();
+            vTaskDelay(pdMS_TO_TICKS(20));  // Tempo para o olho ficar aberto
+          }
+        } else if (estado_comando == 1) {
+          if ((millis() - tempo_comando) < dt_brava) {
+            estado_comando = 0;
+          } else if ((millis() - tempo_olho_mau) > 2000) {
+            estado_comando = 2;
+            tempo_olho_mau = millis();
+          } else {
+            display1.clearDisplay();
+            display1.drawBitmap(41, 9, olhinho2, 46, 46, WHITE);
+            display1.display();
+
+            display2.clearDisplay();
+            display2.drawBitmap(41, 9, olhinho4, 46, 46, WHITE);
+            display2.display();
+            vTaskDelay(pdMS_TO_TICKS(20));  // Tempo para o olho ficar aberto
+          }
+        } else if (estado_comando == 2) {
+          if ((millis() - tempo_comando) < dt_brava) {
+            estado_comando = 0;
+          } else if ((millis() - tempo_olho_mau) > 2000) {
+            estado_comando = 1;
+            tempo_olho_mau = millis();
+          } else {
+            display1.clearDisplay();
+            display1.drawBitmap(41, 18, olhinho2, 46, 46, WHITE);
+            display1.display();
+
+            display2.clearDisplay();
+            display2.drawBitmap(41, 0, olhinho4, 46, 46, WHITE);
+            display2.display();
+            vTaskDelay(pdMS_TO_TICKS(20));  // Tempo para o olho ficar aberto
+          }
+        }
+        else{
+          // Olho coracao
+          if ((millis() - tempo_coracao) > dt_coracao) {
+            estado_comando = 0;
+            tempo_comando = millis();
+          } else {
+            display1.clearDisplay();
+            display1.drawBitmap(41, 0, olhinho5, 46, 46, WHITE);
+            display1.display();
+
+            display2.clearDisplay();
+            display2.drawBitmap(41, 0, olhinho6, 46, 46, WHITE);
+            display2.display();
+            vTaskDelay(pdMS_TO_TICKS(20));  // Tempo para o olho ficar aberto
+          }
+        }
+      }
+    } else {
+      if ((millis() - tempo_piscada) > dt_piscada) {
+        estado_piscando = 0;
+        tempo_piscada = millis();
+      }
+    }
+  }
 }
 
 int estado = 11;
@@ -936,22 +1079,36 @@ void TaskComunicacao(void *pvParameters) {
     if (estado != 11){
       if (GamePad.isRightPressed()||GamePad.isLeftPressed()){       // Modo rotacional
         mode = 1;
+        tempo_comando = millis();
       }
       if (GamePad.isUpPressed()||GamePad.isDownPressed()){       // Modo omnidirecional
         mode = 0;
+        tempo_comando = millis();
+      }
+      if (GamePad.isSquarePressed()) {
+        playTrack(1);
       }
       if (GamePad.isCirclePressed()){       // "Dar a patinha"
         estado = 1;
+        tempo_comando = millis();
       }
-      else if(GamePad.isTrianglePressed()){ // Rebola
-        estado = 2;
+      else if (GamePad.isTrianglePressed()) {
+        playTrack(1);
+        estado_comando = 3;
+        tempo_coracao = millis();
       }
+      // if(GamePad.isTrianglePressed()){ // Rebola
+      //   estado = 2;
+      //   tempo_comando = millis();
+      // }
       else if(GamePad.getRadius() > 2){     // Andar omnidirecional
         angle_joystick = GamePad.getAngle();
         estado = 3;
+        tempo_comando = millis();
       }
       else if(GamePad.isSelectPressed()){   // Desarma
         estado = 10;
+        tempo_comando = millis();
       }
       else{
         estado = 0;
@@ -960,6 +1117,7 @@ void TaskComunicacao(void *pvParameters) {
     else{
       if(GamePad.isStartPressed()){         // Arma
         estado = 9;
+        tempo_comando = millis();
       }
     }
     vTaskDelay(pdMS_TO_TICKS(20));   
