@@ -13,6 +13,8 @@ HardwareSerial meuSerial(2);
 #define METADE_PONTOS TOTAL_PONTOS / 2
 #define TOTAL_PONTOS_CIRCULAR 25
 #define DEBUG_SIMULADOR false
+#define TOUCH_PIN T3
+#define TOUCH_VALUE 40
 
 int OFFSET_ESQF = 0;
 int OFFSET_DIRF = METADE_PONTOS;
@@ -471,8 +473,8 @@ struct Pata {
 
   void moverPosIni() {
     int3 angles = cinematicaInversa(this->xyz_ini);
-    // this->moverPata(angles.ombro, angles.femur, angles.tibia);
-    this->moverPataSuave(angles.ombro, angles.femur, angles.tibia, 1);
+    this->moverPata(angles.ombro, angles.femur, angles.tibia);
+    // this->moverPataSuave(angles.ombro, angles.femur, angles.tibia, 1);
   }
 };
 
@@ -491,7 +493,8 @@ struct Quadruped {
   void ligarQuadruped(){
     int totalPontos = 100;
     int metadePontos = totalPontos/2;
-    int3 angles = {0,40,-70};
+    // int3 angles = {0,40,-70};
+    int3 angles = {0,80,-125};
     int3 anglesStart = {angles.ombro,80,-135};
     // Manda a pata para a posicao inicial de coccum e guarda o xyz
     floatxyz xyzStartEsqF = this->EsqF.iniciaPata(anglesStart);
@@ -560,7 +563,8 @@ struct Quadruped {
   void desligarQuadruped(){
     int totalPontos = 100;
     int metadePontos = totalPontos/2;
-    int3 angles = {0,40,-70};
+    // int3 angles = {0,40,-70};
+    int3 angles = {0,80,-125};
     int3 anglesStart = {angles.ombro,80,-135};
     // Gero os xyz desses angulos
     floatxyz xyzStartEsqF = this->EsqF.cinematicaDireta(anglesStart);
@@ -835,11 +839,14 @@ Pata DirT = {&pwm, 0, 1, 2, 349, 759, 321, -95, 550, 968};
 
 Quadruped lilla = {EsqF, EsqT, DirF,DirT};
 
-unsigned long tempo_comando, tempo_piscada, tempo_olho_mau, tempo_coracao;
+unsigned long tempo_comando, tempo_piscada, tempo_olho_mau, tempo_coracao, tempo_touch;
+int valor = 60;
+int touch_state = 0;
 
 void TaskQuadruped(void *pvParameters);
 void TaskComunicacao(void *pvParameters);
 void TaskDisplays(void *pvParameters);
+void TaskSensor1(void *pvParameters);
 // Audio
 void sendCommand(byte command, byte param1, byte param2) {
   byte commandBuffer[10] = { 0x7E, 0xFF, 0x06, command, 0x00, param1, param2, 0x00, 0x00, 0xEF };
@@ -888,6 +895,7 @@ void setup() {
   tempo_piscada = millis();
   tempo_comando = millis();
   tempo_olho_mau = millis();
+  tempo_touch = millis();
 
   pwm.begin();
   pwm.setPWMFreq(50);
@@ -897,6 +905,7 @@ void setup() {
   xTaskCreate(TaskQuadruped, "quadruped", 4096, NULL, 1, NULL);
   xTaskCreate(TaskComunicacao, "comunicacao", 4096, NULL, 1, NULL);
   xTaskCreate(TaskDisplays, "Displays", 2048, NULL, 1, NULL);
+  xTaskCreate(TaskSensor1, "sensor1", 4096, NULL, 1, NULL);
 
 }
 
@@ -1121,5 +1130,93 @@ void TaskComunicacao(void *pvParameters) {
       }
     }
     vTaskDelay(pdMS_TO_TICKS(20));   
+  }
+}
+
+void TaskSensor1(void *pvParameters) {
+  for (;;) {
+    valor = touchRead(TOUCH_PIN);
+    // Serial.print(valor);
+    // Serial.print(" ");
+    // Serial.println(touch_state);
+    switch (touch_state) {
+        case 0:
+            if (valor < TOUCH_VALUE){
+              touch_state = 1;
+              tempo_touch = millis();
+            }
+            break;
+        case 1:
+            if ((millis()-tempo_touch)>5000){
+              touch_state = 0;
+            }
+            else{
+              if (valor >= TOUCH_VALUE ){
+                touch_state = 2;
+                tempo_touch = millis();
+              }
+            }
+            break;
+        case 2:
+            if ((millis()-tempo_touch)>5000){
+              touch_state = 0;
+            }
+            else{
+              if (valor < TOUCH_VALUE){
+                touch_state = 3;
+                tempo_touch = millis();
+              }
+            }
+            break;
+        case 3:
+            if ((millis()-tempo_touch)>5000){
+              touch_state = 0;
+            }
+            else{
+              if (valor >= TOUCH_VALUE ){
+                touch_state = 4;
+                tempo_touch = millis();
+              }
+            }
+            break;
+        case 4:
+            if ((millis()-tempo_touch)>5000){
+              touch_state = 0;
+            }
+            else{
+              if (valor < TOUCH_VALUE){
+                touch_state = 5;
+                tempo_touch = millis();
+              }
+            }
+            break;
+        case 5:
+            if ((millis()-tempo_touch)>5000){
+              touch_state = 0;
+            }
+            else{
+              if (valor >= TOUCH_VALUE ){
+                touch_state = 6;
+                tempo_touch = millis();
+                playTrack(1);
+                estado_comando = 3;
+                tempo_coracao = millis();
+              }
+            }
+            break;
+        case 6:
+            Serial.println("CARINHO DETECTADO!");
+            if ((millis()-tempo_touch)>5000){
+              if (valor >= TOUCH_VALUE ){
+                touch_state = 0;
+              }
+              tempo_touch = millis();
+            }
+            break;
+        default:
+            touch_state = 0;
+            tempo_touch = millis();
+    }
+    vTaskDelay(pdMS_TO_TICKS(200));   
   }
 }
