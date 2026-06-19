@@ -900,6 +900,8 @@ void setup() {
   pwm.begin();
   pwm.setPWMFreq(50);
 
+  pinMode(14, INPUT_PULLUP);
+
   delay(2000);
 
   xTaskCreate(TaskQuadruped, "quadruped", 4096, NULL, 1, NULL);
@@ -1144,6 +1146,13 @@ void TaskSensor1(void *pvParameters) {
             if (valor < TOUCH_VALUE){
               touch_state = 1;
               tempo_touch = millis();
+            }
+            else if (!digitalRead(14)){ // Pegou o osso
+              touch_state = 6;
+              tempo_touch = millis();
+              playTrack(1);
+              estado_comando = 3;
+              tempo_coracao = millis();
             }
             break;
         case 1:
